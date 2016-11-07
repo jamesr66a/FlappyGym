@@ -2,6 +2,7 @@ import gym
 from gym import error, spaces, utils
 from gym.utils import seeding
 import Image
+import numpy as np
 import os
 import pygame
 import random
@@ -172,12 +173,12 @@ class FlappyEnv(gym.Env):
 
 
   def _step(self, action):
-    print 'step'
+    pygame.image.save(self.SCREEN, 'temp.bmp')
+    bmpfile = Image.open('temp.bmp');
+    return np.array(bmpfile), 1, False, {}
 
   def _reset(self):
     print 'reset'
 
   def _render(self, mode='human', close=False):
-    pygame.image.save(self.SCREEN, 'temp.bmp')
-    bmpfile = Image.open('temp.bmp');
-    return bmpfile.bits
+    pass
