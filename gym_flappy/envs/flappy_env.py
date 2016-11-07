@@ -4,12 +4,11 @@ from gym.utils import seeding
 
 class FlappyEnv(gym.Env):
   metadata = {'render.modes': ['human']}
-  (w, h) = (640, 480)
-
 
   def __init__(self):
-    self.action_space = spaces.Tuple((spaces.discrete(2)))
-    self.observation_space = spaces.Box(low=-1, high=1, shape=(w,h))
+    dims = (640, 480)
+    self.action_space = (spaces.Discrete(2))
+    self.observation_space = spaces.Box(low=-1, high=1, shape=dims)
 
   def _step(self, action):
     print 'step'
