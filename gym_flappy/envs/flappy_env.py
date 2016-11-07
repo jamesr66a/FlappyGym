@@ -1,9 +1,11 @@
 import gym
 from gym import error, spaces, utils
 from gym.utils import seeding
+import Image
 import os
 import pygame
 import random
+import sys
 
 class FlappyEnv(gym.Env):
   metadata = {'render.modes': ['human']}
@@ -111,14 +113,62 @@ class FlappyEnv(gym.Env):
         self.getHitmask(self.IMAGES['player'][2]),
     )
 
+    self.score = self.playerIndex = self.loopIter = 0
+    self.playerx = int(self.SCREENWIDTH * 0.2)
+    self.playery = int((self.SCREENHEIGHT - self.IMAGES['player'][0].get_height()) / 2)
+
+    self.basex = 0
+    self.baseShift = self.IMAGES['base'].get_width() - \
+      self.IMAGES['background'].get_width()
+
+    newPipe1 = self.getRandomPipe()
+    newPipe2 = self.getRandomPipe()
+
+    # list of upper pipes
+    self.upperPipes = [
+        {'x': self.SCREENWIDTH + 200, 'y': newPipe1[0]['y']},
+        {'x': self.SCREENWIDTH + 200 + (self.SCREENWIDTH / 2), 'y': newPipe2[0]['y']},
+    ]
+
+    # list of lowerpipe
+    self.lowerPipes = [
+        {'x': self.SCREENWIDTH + 200, 'y': newPipe1[1]['y']},
+        {'x': self.SCREENWIDTH + 200 + (self.SCREENWIDTH / 2), 'y': newPipe2[1]['y']},
+    ]
+
+    self.pipeVelX = -4
+
+    # player velocity, max velocity, downward accleration, accleration on flap
+    self.playerVelY    =  -9   # player's velocity along Y, default same as playerFlapped
+    self.playerMaxVelY =  10   # max vel along Y, max descend speed
+    self.playerMinVelY =  -8   # min vel along Y, max ascend speed
+    self.playerAccY    =   1   # players downward accleration
+    self.playerFlapAcc =  -9   # players speed on flapping
+    self.playerFlapped = False # True when player flaps
+ 
+
+  def getRandomPipe(self):
+    """returns a randomly generated pipe"""
+    # y of gap between upper and lower pipe
+    gapY = random.randrange(0, int(self.BASEY * 0.6 - self.PIPEGAPSIZE))
+    gapY += int(self.BASEY * 0.2)
+    pipeHeight = self.IMAGES['pipe'][0].get_height()
+    pipeX = self.SCREENWIDTH + 10
+
+    return [
+        {'x': pipeX, 'y': gapY - pipeHeight},  # upper pipe
+        {'x': pipeX, 'y': gapY + self.PIPEGAPSIZE}, # lower pipe
+    ]
+
+
   def getHitmask(self, image):
-      """returns a hitmask using an image's alpha."""
-      mask = []
-      for x in range(image.get_width()):
-          mask.append([])
-          for y in range(image.get_height()):
-              mask[x].append(bool(image.get_at((x,y))[3]))
-      return mask
+    """returns a hitmask using an image's alpha."""
+    mask = []
+    for x in range(image.get_width()):
+        mask.append([])
+        for y in range(image.get_height()):
+            mask[x].append(bool(image.get_at((x,y))[3]))
+    return mask
 
 
   def _step(self, action):
@@ -128,4 +178,6 @@ class FlappyEnv(gym.Env):
     print 'reset'
 
   def _render(self, mode='human', close=False):
-    print 'render'
+    pygame.image.save(self.SCREEN, 'temp.bmp')
+    bmpfile = Image.open('temp.bmp');
+    return bmpfile.bits
