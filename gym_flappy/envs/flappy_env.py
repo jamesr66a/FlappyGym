@@ -2,22 +2,23 @@ import gym
 from gym import error, spaces, utils
 from gym.utils import seeding
 import Image
+from itertools import cycle
 import numpy as np
 import os
 import pygame
 import random
+from scipy.misc import imresize
 import sys
 
 class FlappyEnv(gym.Env):
   metadata = {'render.modes': ['human']}
 
   def __init__(self):
-    dims = (640, 480)
-    self.action_space = (spaces.Discrete(2))
-    self.observation_space = spaces.Box(low=-1, high=1, shape=dims)
+    self.SCREENWIDTH = 280
+    self.SCREENHEIGHT = 510
 
-    self.SCREENWIDTH = 288
-    self.SCREENHEIGHT = 512
+    self.action_space = (spaces.Discrete(2))
+    self.observation_space = spaces.Box(low=-1, high=1, shape=(self.SCREENWIDTH, self.SCREENHEIGHT))
 
     self.PIPEGAPSIZE = 100
     self.BASEY = self.SCREENHEIGHT * 0.79
@@ -115,6 +116,7 @@ class FlappyEnv(gym.Env):
     )
 
     self.score = self.playerIndex = self.loopIter = 0
+    self.playerIndexGen = cycle([0, 1, 2, 1])
     self.playerx = int(self.SCREENWIDTH * 0.2)
     self.playery = int((self.SCREENHEIGHT - self.IMAGES['player'][0].get_height()) / 2)
 
@@ -184,12 +186,62 @@ class FlappyEnv(gym.Env):
     )
 
     if crashTest[0]:
-      return np.array([1, 2, 3]), 0, True, {}
+      pygame.image.save(self.SCREEN, 'temp.bmp')
+      bmpfile = Image.open('temp.bmp');
+      pygame.display.update()
+      return imresize(np.array(bmpfile, dtype=np.float32), 0.25), 0, True, {}
 
+    playerMidPos = self.playerx + self.IMAGES['player'][0].get_width() / 2
+    for pipe in self.upperPipes:
+      pipeMidPos = pipe['x'] + self.IMAGES['pipe'][0].get_width() / 2
+      if pipeMidPos <= playerMidPos < pipeMidPos + 4:
+        score += 1
+
+    # playerIndex basex change
+    if (self.loopIter + 1) % 3 == 0:
+      self.playerIndex = self.playerIndexGen.next()
+    self.loopIter = (self.loopIter + 1) % 30
+    self.basex = -((-self.basex + 100) % self.baseShift)
+
+    # player's movement
+    if self.playerVelY < self.playerMaxVelY and not self.playerFlapped:
+      self.playerVelY += self.playerAccY
+    if self.playerFlapped:
+      self.playerFlapped = False
+    self.playerHeight = self.IMAGES['player'][self.playerIndex].get_height()
+    self.playery += min(self.playerVelY, self.BASEY - self.playery - self.playerHeight)
+
+    # move pipes to left
+    for uPipe, lPipe in zip(self.upperPipes, self.lowerPipes):
+      uPipe['x'] += self.pipeVelX
+      lPipe['x'] += self.pipeVelX
+
+    # add new pipe when first pipe is about to touch left of screen
+    if 0 < self.upperPipes[0]['x'] < 5:
+      newPipe = getRandomPipe()
+      self.upperPipes.append(newPipe[0])
+      self.lowerPipes.append(newPipe[1])
+
+    # remove first pipe if its out of the screen
+    if self.upperPipes[0]['x'] < -self.IMAGES['pipe'][0].get_width():
+      self.upperPipes.pop(0)
+      self.lowerPipes.pop(0)
+
+    self.SCREEN.blit(self.IMAGES['background'], (0,0))
+
+    for uPipe, lPipe in zip(self.upperPipes, self.lowerPipes):
+      self.SCREEN.blit(self.IMAGES['pipe'][0], (uPipe['x'], uPipe['y']))
+      self.SCREEN.blit(self.IMAGES['pipe'][1], (lPipe['x'], lPipe['y']))
+
+    self.SCREEN.blit(self.IMAGES['base'], (self.basex, self.BASEY))
+    # print score so player overlaps the score
+    self.showScore(self.score)
+    self.SCREEN.blit(self.IMAGES['player'][self.playerIndex], (self.playerx, self.playery))
 
     pygame.image.save(self.SCREEN, 'temp.bmp')
     bmpfile = Image.open('temp.bmp');
-    return np.array(bmpfile), 1, False, {}
+    pygame.display.update()
+    return imresize(np.array(bmpfile, dtype=np.float32), 0.25), 1, False, {}
 
   def checkCrash(self, player, upperPipes, lowerPipes):
     """returns True if player collders with base or pipes."""
@@ -242,6 +294,19 @@ class FlappyEnv(gym.Env):
           return True
     return False
 
+  def showScore(self, score):
+    """displays score in center of screen"""
+    scoreDigits = [int(x) for x in list(str(self.score))]
+    totalWidth = 0 # total width of all numbers to be printed
+
+    for digit in scoreDigits:
+      totalWidth += self.IMAGES['numbers'][digit].get_width()
+
+    Xoffset = (self.SCREENWIDTH - totalWidth) / 2
+
+    for digit in scoreDigits:
+      self.SCREEN.blit(self.IMAGES['numbers'][digit], (Xoffset, self.SCREENHEIGHT * 0.1))
+      Xoffset += self.IMAGES['numbers'][digit].get_width()
 
   def _reset(self):
     print 'reset'
