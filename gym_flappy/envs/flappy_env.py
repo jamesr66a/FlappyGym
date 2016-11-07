@@ -173,9 +173,75 @@ class FlappyEnv(gym.Env):
 
 
   def _step(self, action):
+    if action == 1:
+      if self.playery > -2 * self.IMAGES['player'][0].get_height():
+        self.playerVelY = self.playerFlapAcc
+        self.playerFlapped = True
+
+    crashTest = self.checkCrash(
+      {'x': self.playerx, 'y': self.playery, 'index': self.playerIndex},
+      self.upperPipes, self.lowerPipes
+    )
+
+    if crashTest[0]:
+      return np.array([1, 2, 3]), 0, True, {}
+
+
     pygame.image.save(self.SCREEN, 'temp.bmp')
     bmpfile = Image.open('temp.bmp');
     return np.array(bmpfile), 1, False, {}
+
+  def checkCrash(self, player, upperPipes, lowerPipes):
+    """returns True if player collders with base or pipes."""
+    pi = player['index']
+    player['w'] = self.IMAGES['player'][0].get_width()
+    player['h'] = self.IMAGES['player'][0].get_height()
+
+    # if player crashes into ground
+    if player['y'] + player['h'] >= self.BASEY - 1:
+      return [True, True]
+    else:
+
+      playerRect = pygame.Rect(player['x'], player['y'],
+                    player['w'], player['h'])
+      pipeW = self.IMAGES['pipe'][0].get_width()
+      pipeH = self.IMAGES['pipe'][0].get_height()
+
+      for uPipe, lPipe in zip(self.upperPipes, self.lowerPipes):
+        # upper and lower pipe rects
+        uPipeRect = pygame.Rect(uPipe['x'], uPipe['y'], pipeW, pipeH)
+        lPipeRect = pygame.Rect(lPipe['x'], lPipe['y'], pipeW, pipeH)
+
+        # player and upper/lower pipe hitmasks
+        pHitMask = self.HITMASKS['player'][pi]
+        uHitmask = self.HITMASKS['pipe'][0]
+        lHitmask = self.HITMASKS['pipe'][1]
+
+        # if bird collided with upipe or lpipe
+        uCollide = self.pixelCollision(playerRect, uPipeRect, pHitMask, uHitmask)
+        lCollide = self.pixelCollision(playerRect, lPipeRect, pHitMask, lHitmask)
+
+        if uCollide or lCollide:
+          return [True, False]
+
+    return [False, False]
+
+  def pixelCollision(self, rect1, rect2, hitmask1, hitmask2):
+    """Checks if two objects collide and not just their rects"""
+    rect = rect1.clip(rect2)
+
+    if rect.width == 0 or rect.height == 0:
+      return False
+
+    x1, y1 = rect.x - rect1.x, rect.y - rect1.y
+    x2, y2 = rect.x - rect2.x, rect.y - rect2.y
+
+    for x in xrange(rect.width):
+      for y in xrange(rect.height):
+        if hitmask1[x1+x][y1+y] and hitmask2[x2+x][y2+y]:
+          return True
+    return False
+
 
   def _reset(self):
     print 'reset'
