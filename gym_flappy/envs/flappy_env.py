@@ -9,6 +9,7 @@ import pygame
 import random
 from scipy.misc import imresize
 import sys
+import time
 
 class FlappyEnv(gym.Env):
   metadata = {'render.modes': ['human']}
@@ -20,7 +21,7 @@ class FlappyEnv(gym.Env):
     self.action_space = (spaces.Discrete(2))
     self.observation_space = spaces.Box(low=-1, high=1, shape=(self.SCREENWIDTH, self.SCREENHEIGHT))
 
-    self.PIPEGAPSIZE = 100
+    self.PIPEGAPSIZE = 200 
     self.BASEY = self.SCREENHEIGHT * 0.79
     self.IMAGES = {}
     self.SOUNDS = {}
@@ -148,6 +149,8 @@ class FlappyEnv(gym.Env):
     self.playerAccY    =   1   # players downward accleration
     self.playerFlapAcc =  -9   # players speed on flapping
     self.playerFlapped = False # True when player flaps
+
+    self.stepcount = 0
  
 
   def getRandomPipe(self):
@@ -175,10 +178,15 @@ class FlappyEnv(gym.Env):
 
 
   def _step(self, action):
-    if action == 1:
+    reward = 1;
+    if self.stepcount == 0 and action == 1:
       if self.playery > -2 * self.IMAGES['player'][0].get_height():
         self.playerVelY = self.playerFlapAcc
         self.playerFlapped = True
+        reward += -10
+
+    self.stepcount += 1
+    self.stepcount %= 7
 
     crashTest = self.checkCrash(
       {'x': self.playerx, 'y': self.playery, 'index': self.playerIndex},
@@ -186,16 +194,18 @@ class FlappyEnv(gym.Env):
     )
 
     if crashTest[0]:
-      pygame.image.save(self.SCREEN, 'temp.bmp')
-      bmpfile = Image.open('temp.bmp');
-      pygame.display.update()
-      return imresize(np.array(bmpfile, dtype=np.float32), 0.25), 0, True, {}
+      #pygame.image.save(self.SCREEN, 'temp.bmp')
+      imgstr = pygame.image.tostring(self.SCREEN, 'RGB')
+      bmpfile = Image.frombytes('RGB', self.SCREEN.get_size(), imgstr);
+      reward += -10
+      return imresize(np.array(bmpfile, dtype=np.float32), 0.25), reward, True, {}
 
     playerMidPos = self.playerx + self.IMAGES['player'][0].get_width() / 2
     for pipe in self.upperPipes:
       pipeMidPos = pipe['x'] + self.IMAGES['pipe'][0].get_width() / 2
       if pipeMidPos <= playerMidPos < pipeMidPos + 4:
-        score += 1
+        reward += 25
+        self.score += 1
 
     # playerIndex basex change
     if (self.loopIter + 1) % 3 == 0:
@@ -218,7 +228,7 @@ class FlappyEnv(gym.Env):
 
     # add new pipe when first pipe is about to touch left of screen
     if 0 < self.upperPipes[0]['x'] < 5:
-      newPipe = getRandomPipe()
+      newPipe = self.getRandomPipe()
       self.upperPipes.append(newPipe[0])
       self.lowerPipes.append(newPipe[1])
 
@@ -238,10 +248,11 @@ class FlappyEnv(gym.Env):
     self.showScore(self.score)
     self.SCREEN.blit(self.IMAGES['player'][self.playerIndex], (self.playerx, self.playery))
 
-    pygame.image.save(self.SCREEN, 'temp.bmp')
-    bmpfile = Image.open('temp.bmp');
-    pygame.display.update()
-    return imresize(np.array(bmpfile, dtype=np.float32), 0.25), 1, False, {}
+    #pygame.image.save(self.SCREEN, 'temp.bmp')
+    #bmpfile = Image.open('temp.bmp');
+    imgstr = pygame.image.tostring(self.SCREEN, 'RGB')
+    bmpfile = Image.frombytes('RGB', self.SCREEN.get_size(), imgstr);
+    return imresize(np.array(bmpfile, dtype=np.float32), 0.25), reward, False, {}
 
   def checkCrash(self, player, upperPipes, lowerPipes):
     """returns True if player collders with base or pipes."""
@@ -309,7 +320,8 @@ class FlappyEnv(gym.Env):
       Xoffset += self.IMAGES['numbers'][digit].get_width()
 
   def _reset(self):
-    print 'reset'
+    self.__init__();
 
   def _render(self, mode='human', close=False):
-    pass
+    pygame.display.update()
+
